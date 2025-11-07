@@ -92,6 +92,7 @@ chan system_events = [10] of {mtype};
  */
 proctype Inspector() {
     mtype event;
+    byte field_entry_count = 0;  /* Limit iterations to ensure progress */
 
     do
     :: workflow_state == UNINSPECTED ->
@@ -106,11 +107,13 @@ proctype Inspector() {
         :: user_events!ACCEPT_SELECTED;
            inspection_decision = 1;
            workflow_state = DATA_ENTRY;
+           field_entry_count = 0;  /* Reset counter */
            printf("Inspector: Selected ACCEPT\n");
 
         :: user_events!REJECT_SELECTED;
            inspection_decision = 2;
            workflow_state = DATA_ENTRY;
+           field_entry_count = 0;  /* Reset counter */
            printf("Inspector: Selected REJECT\n");
 
         :: user_events!CANCEL_CLICKED;
@@ -122,27 +125,31 @@ proctype Inspector() {
     :: workflow_state == DATA_ENTRY ->
         /* Enter required data */
         if
-        :: !quality_code_entered ->
+        :: !quality_code_entered && field_entry_count < 10 ->
            user_events!QUALITY_CODE_ENTERED;
            quality_code_entered = true;
+           field_entry_count++;
            printf("Inspector: Entered quality code\n");
 
-        :: !uom_entered ->
+        :: !uom_entered && field_entry_count < 10 ->
            user_events!UOM_ENTERED;
            uom_entered = true;
+           field_entry_count++;
            printf("Inspector: Entered UOM\n");
 
-        :: !reason_code_entered ->
+        :: !reason_code_entered && field_entry_count < 10 ->
            user_events!REASON_CODE_ENTERED;
            reason_code_entered = true;
+           field_entry_count++;
            printf("Inspector: Entered reason code\n");
 
-        :: !supplier_lot_entered ->
+        :: !supplier_lot_entered && field_entry_count < 10 ->
            user_events!SUPPLIER_LOT_ENTERED;
            supplier_lot_entered = true;
+           field_entry_count++;
            printf("Inspector: Entered supplier lot\n");
 
-        :: quantity_inspected < quantity_uninspected ->
+        :: quantity_inspected < quantity_uninspected && field_entry_count < 10 ->
            user_events!QUANTITY_ENTERED;
            quantity_inspected = quantity_inspected + 10;
            if
@@ -150,25 +157,28 @@ proctype Inspector() {
               quantity_inspected = quantity_uninspected;
            :: else -> skip;
            fi
+           field_entry_count++;
            printf("Inspector: Entered quantity %d\n", quantity_inspected);
 
-        :: opm_enabled && process_organization && !secondary_uom_entered ->
+        :: opm_enabled && process_organization && !secondary_uom_entered && field_entry_count < 10 ->
            user_events!SECONDARY_UOM_ENTERED;
            secondary_uom_entered = true;
+           field_entry_count++;
            printf("Inspector: Entered secondary UOM\n");
 
-        :: opm_enabled && process_organization && !secondary_quantity_entered ->
+        :: opm_enabled && process_organization && !secondary_quantity_entered && field_entry_count < 10 ->
            user_events!SECONDARY_QUANTITY_ENTERED;
            secondary_quantity_entered = true;
+           field_entry_count++;
            printf("Inspector: Entered secondary quantity\n");
 
-        :: mandatory_quality_plan && !quality_results_entered ->
+        :: mandatory_quality_plan && !quality_results_entered && field_entry_count < 10 ->
            /* Must enter quality results */
            workflow_state = QUALITY_ENTRY;
            printf("Inspector: Navigating to quality entry\n");
 
-        :: required_fields_complete ->
-           /* Attempt to save */
+        :: required_fields_complete || field_entry_count >= 10 ->
+           /* Attempt to save (forced after 10 field entries to ensure progress) */
            user_events!SAVE_CLICKED;
            system_events?event;
            if
@@ -196,6 +206,7 @@ proctype Inspector() {
               secondary_uom_entered = false;
               secondary_quantity_entered = false;
               inspection_decision = 0;
+              field_entry_count = 0;
 
               /* Check if more inspection needed */
               if
@@ -208,9 +219,11 @@ proctype Inspector() {
 
            :: event == SAVE_FAILED ->
               printf("Inspector: Save failed - validation error\n");
+              field_entry_count = 0;  /* Reset to try again */
            fi
 
-        :: user_events!CANCEL_CLICKED;
+        :: true ->  /* Always allow cancel to ensure progress */
+           user_events!CANCEL_CLICKED;
            workflow_state = CANCELLED;
            printf("Inspector: Cancelled inspection\n");
            break;
