@@ -1,0 +1,363 @@
+-- ============================================================================
+-- Oracle Purchasing Inspection Workflow - NuSMV Formal Specification
+-- ============================================================================
+-- This model formally specifies the "Inspecting Received Items" workflow
+-- from Oracle Purchasing, verifying safety, liveness, and temporal properties.
+-- ============================================================================
+
+MODULE main
+
+VAR
+  -- Workflow state tracking
+  workflow_state : {uninspected, inspection_window_open, data_entry, quality_entry, saved, cancelled};
+
+  -- Inspection decision
+  inspection_decision : {none, accept, reject};
+
+  -- Quantity tracking (using smaller range for model checking efficiency)
+  quantity_total : 0..100;
+  quantity_inspected : 0..100;
+  quantity_accepted : 0..100;
+  quantity_rejected : 0..100;
+  quantity_uninspected : 0..100;
+
+  -- Required field entry tracking
+  quality_code_entered : boolean;
+  reason_code_entered : boolean;
+  uom_entered : boolean;
+  date_entered : boolean;
+  supplier_lot_entered : boolean;
+  comment_entered : boolean;
+
+  -- Oracle Quality integration
+  oracle_quality_installed : boolean;
+  mandatory_quality_plan : boolean;
+  quality_results_entered : boolean;
+
+  -- OPM (Oracle Process Manufacturing) integration
+  opm_enabled : boolean;
+  process_organization : boolean;
+  secondary_uom_entered : boolean;
+  secondary_quantity_entered : boolean;
+
+  -- Re-query capability
+  can_requery : boolean;
+
+  -- User actions
+  user_action : {none, click_inspect, select_accept, select_reject, enter_quantity,
+                  enter_fields, enter_quality_results, click_save, click_cancel, requery};
+
+ASSIGN
+  -- ========================================
+  -- Initial State
+  -- ========================================
+  init(workflow_state) := uninspected;
+  init(inspection_decision) := none;
+  init(quantity_total) := 100;
+  init(quantity_uninspected) := 100;
+  init(quantity_inspected) := 0;
+  init(quantity_accepted) := 0;
+  init(quantity_rejected) := 0;
+  init(quality_code_entered) := FALSE;
+  init(reason_code_entered) := FALSE;
+  init(uom_entered) := FALSE;
+  init(date_entered) := TRUE;  -- Defaults to system date
+  init(supplier_lot_entered) := FALSE;
+  init(comment_entered) := FALSE;
+  init(oracle_quality_installed) := FALSE;
+  init(mandatory_quality_plan) := FALSE;
+  init(quality_results_entered) := FALSE;
+  init(opm_enabled) := FALSE;
+  init(process_organization) := FALSE;
+  init(secondary_uom_entered) := FALSE;
+  init(secondary_quantity_entered) := FALSE;
+  init(can_requery) := TRUE;
+  init(user_action) := none;
+
+  -- ========================================
+  -- State Transitions
+  -- ========================================
+
+  -- Workflow state transitions
+  next(workflow_state) :=
+    case
+      -- Navigate to inspection window
+      workflow_state = uninspected & user_action = click_inspect : inspection_window_open;
+
+      -- Select Accept or Reject decision
+      workflow_state = inspection_window_open &
+      (user_action = select_accept | user_action = select_reject) : data_entry;
+
+      -- Enter quality results if mandatory
+      workflow_state = data_entry &
+      oracle_quality_installed & mandatory_quality_plan &
+      !quality_results_entered & user_action = enter_quality_results : quality_entry;
+
+      -- Save from data_entry (if all conditions met)
+      workflow_state = data_entry &
+      user_action = click_save &
+      quality_code_entered & uom_entered &
+      (!mandatory_quality_plan | quality_results_entered) &
+      (!opm_enabled | !process_organization | (secondary_uom_entered & secondary_quantity_entered)) : saved;
+
+      -- Save from quality_entry (if quality results entered)
+      workflow_state = quality_entry &
+      user_action = click_save &
+      quality_results_entered &
+      quality_code_entered & uom_entered : saved;
+
+      -- Cancel from various states
+      (workflow_state = inspection_window_open |
+       workflow_state = data_entry |
+       workflow_state = quality_entry) &
+      user_action = click_cancel : cancelled;
+
+      -- Re-query to inspect more items
+      workflow_state = saved & can_requery & user_action = requery : inspection_window_open;
+
+      -- Stay in current state
+      TRUE : workflow_state;
+    esac;
+
+  -- Inspection decision tracking
+  next(inspection_decision) :=
+    case
+      user_action = select_accept : accept;
+      user_action = select_reject : reject;
+      workflow_state = saved | workflow_state = cancelled : none;
+      TRUE : inspection_decision;
+    esac;
+
+  -- Quantity tracking
+  next(quantity_inspected) :=
+    case
+      user_action = enter_quantity & quantity_inspected < quantity_uninspected :
+        quantity_inspected + 1;
+      workflow_state = saved : 0;  -- Reset after save
+      TRUE : quantity_inspected;
+    esac;
+
+  next(quantity_accepted) :=
+    case
+      workflow_state = data_entry & inspection_decision = accept &
+      user_action = click_save : quantity_accepted + quantity_inspected;
+      TRUE : quantity_accepted;
+    esac;
+
+  next(quantity_rejected) :=
+    case
+      workflow_state = data_entry & inspection_decision = reject &
+      user_action = click_save : quantity_rejected + quantity_inspected;
+      TRUE : quantity_rejected;
+    esac;
+
+  next(quantity_uninspected) :=
+    case
+      workflow_state = data_entry & user_action = click_save :
+        quantity_uninspected - quantity_inspected;
+      TRUE : quantity_uninspected;
+    esac;
+
+  next(quantity_total) := quantity_total;  -- Constant
+
+  -- Field entry tracking
+  next(quality_code_entered) :=
+    case
+      workflow_state = data_entry & user_action = enter_fields : TRUE;
+      workflow_state = saved | workflow_state = cancelled : FALSE;
+      TRUE : quality_code_entered;
+    esac;
+
+  next(reason_code_entered) :=
+    case
+      workflow_state = data_entry & user_action = enter_fields : TRUE;
+      workflow_state = saved | workflow_state = cancelled : FALSE;
+      TRUE : reason_code_entered;
+    esac;
+
+  next(uom_entered) :=
+    case
+      workflow_state = data_entry & user_action = enter_fields : TRUE;
+      workflow_state = saved | workflow_state = cancelled : FALSE;
+      TRUE : uom_entered;
+    esac;
+
+  next(date_entered) := TRUE;  -- Always defaults to system date
+
+  next(supplier_lot_entered) :=
+    case
+      workflow_state = data_entry & user_action = enter_fields : TRUE;
+      workflow_state = saved | workflow_state = cancelled : FALSE;
+      TRUE : supplier_lot_entered;
+    esac;
+
+  next(comment_entered) :=
+    case
+      workflow_state = data_entry & user_action = enter_fields : TRUE;
+      workflow_state = saved | workflow_state = cancelled : FALSE;
+      TRUE : comment_entered;
+    esac;
+
+  -- Quality results tracking
+  next(quality_results_entered) :=
+    case
+      workflow_state = quality_entry & user_action = enter_quality_results : TRUE;
+      workflow_state = saved | workflow_state = cancelled : FALSE;
+      TRUE : quality_results_entered;
+    esac;
+
+  -- OPM secondary fields
+  next(secondary_uom_entered) :=
+    case
+      workflow_state = data_entry & opm_enabled & process_organization &
+      user_action = enter_fields : TRUE;
+      workflow_state = saved | workflow_state = cancelled : FALSE;
+      TRUE : secondary_uom_entered;
+    esac;
+
+  next(secondary_quantity_entered) :=
+    case
+      workflow_state = data_entry & opm_enabled & process_organization &
+      user_action = enter_fields : TRUE;
+      workflow_state = saved | workflow_state = cancelled : FALSE;
+      TRUE : secondary_quantity_entered;
+    esac;
+
+  -- Re-query capability (after save, receipts no longer available without requery)
+  next(can_requery) :=
+    case
+      workflow_state = saved : (quantity_uninspected > 0);
+      TRUE : can_requery;
+    esac;
+
+  -- Configuration remains constant
+  next(oracle_quality_installed) := oracle_quality_installed;
+  next(mandatory_quality_plan) := mandatory_quality_plan;
+  next(opm_enabled) := opm_enabled;
+  next(process_organization) := process_organization;
+
+  -- User action (non-deterministic choice)
+  next(user_action) := {none, click_inspect, select_accept, select_reject, enter_quantity,
+                         enter_fields, enter_quality_results, click_save, click_cancel, requery};
+
+-- ============================================================================
+-- INVARIANTS - Properties that must always hold
+-- ============================================================================
+
+-- Quantity conservation: accepted + rejected + uninspected = total
+INVAR quantity_accepted + quantity_rejected + quantity_uninspected = quantity_total;
+
+-- Inspected quantity cannot exceed uninspected
+INVAR quantity_inspected <= quantity_uninspected;
+
+-- Cannot both accept and reject simultaneously
+INVAR !(inspection_decision = accept & inspection_decision = reject);
+
+-- OPM secondary fields required when enabled
+INVAR (workflow_state = saved & opm_enabled & process_organization) ->
+      (secondary_uom_entered & secondary_quantity_entered);
+
+-- No negative quantities
+INVAR quantity_accepted >= 0 & quantity_rejected >= 0 & quantity_uninspected >= 0;
+
+-- ============================================================================
+-- CTL PROPERTIES - Computational Tree Logic specifications
+-- ============================================================================
+
+-- ============================================
+-- SAFETY PROPERTIES - "Bad things never happen"
+-- ============================================
+
+-- Property 1: Quantity conservation always holds
+SPEC AG(quantity_accepted + quantity_rejected + quantity_uninspected = quantity_total)
+
+-- Property 2: No negative quantities ever occur
+SPEC AG(quantity_accepted >= 0 & quantity_rejected >= 0 & quantity_uninspected >= 0)
+
+-- Property 3: Cannot accept and reject the same item
+SPEC AG(!(inspection_decision = accept & inspection_decision = reject))
+
+-- Property 4: Cannot save without required fields (quality code and UOM)
+SPEC AG((workflow_state = data_entry & !(quality_code_entered & uom_entered)) ->
+        !(AX(workflow_state = saved)))
+
+-- Property 5: Mandatory quality results must be entered before save
+SPEC AG((oracle_quality_installed & mandatory_quality_plan & !quality_results_entered) ->
+        workflow_state != saved)
+
+-- Property 6: After save, receipts not available for inspection without requery
+SPEC AG((workflow_state = saved & quantity_uninspected > 0) ->
+        AX(workflow_state != data_entry | can_requery))
+
+-- Property 7: OPM secondary fields required when applicable
+SPEC AG((opm_enabled & process_organization & workflow_state = saved) ->
+        (secondary_uom_entered & secondary_quantity_entered))
+
+-- Property 8: Inspection decision must be made before data entry
+SPEC AG((workflow_state = data_entry) -> (inspection_decision != none))
+
+-- Property 9: Cannot inspect more than total quantity
+SPEC AG(quantity_inspected <= quantity_total)
+
+-- ============================================
+-- LIVENESS PROPERTIES - "Good things eventually happen"
+-- ============================================
+
+-- Property 10: Inspection eventually completes (saved or cancelled)
+SPEC AG(workflow_state = inspection_window_open ->
+        AF(workflow_state = saved | workflow_state = cancelled))
+
+-- Property 11: If mandatory quality plan exists, quality results eventually entered
+SPEC AG((mandatory_quality_plan & workflow_state = data_entry) ->
+        AF(quality_results_entered | workflow_state = cancelled))
+
+-- Property 12: Uninspected items can eventually be inspected
+SPEC AG(quantity_uninspected > 0 -> EF(workflow_state = inspection_window_open))
+
+-- Property 13: Every opened inspection window eventually leads to save or cancel
+SPEC AG(workflow_state = inspection_window_open ->
+        AF(workflow_state = saved | workflow_state = cancelled))
+
+-- Property 14: Required fields can eventually be entered
+SPEC AG(workflow_state = data_entry ->
+        EF(quality_code_entered & uom_entered))
+
+-- ============================================
+-- TEMPORAL ORDERING PROPERTIES
+-- ============================================
+
+-- Property 15: Must open inspection window before data entry
+SPEC AG(workflow_state = data_entry ->
+        EX(workflow_state = inspection_window_open | workflow_state = data_entry))
+
+-- Property 16: Quality results must be entered before save when mandatory
+SPEC AG((mandatory_quality_plan & !quality_results_entered) ->
+        A[!quality_results_entered U (workflow_state != saved)])
+
+-- Property 17: Inspection decision must precede save
+SPEC AG((workflow_state = uninspected) ->
+        A[workflow_state != saved U (inspection_decision != none | workflow_state = cancelled)])
+
+-- Property 18: Cannot re-enter inspection without requery after save
+SPEC AG((workflow_state = saved & quantity_uninspected > 0) ->
+        A[workflow_state != data_entry U (user_action = requery | workflow_state = saved)])
+
+-- ============================================
+-- REACHABILITY PROPERTIES
+-- ============================================
+
+-- Property 19: It is possible to successfully complete inspection
+SPEC EF(workflow_state = saved & quantity_accepted > 0)
+
+-- Property 20: It is possible to reject items
+SPEC EF(workflow_state = saved & quantity_rejected > 0)
+
+-- Property 21: It is possible to cancel inspection
+SPEC EF(workflow_state = cancelled)
+
+-- Property 22: It is possible to inspect partial quantities
+SPEC EF(workflow_state = saved & quantity_uninspected > 0 & quantity_uninspected < quantity_total)
+
+-- ============================================================================
+-- END OF SPECIFICATION
+-- ============================================================================

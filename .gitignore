@@ -1,0 +1,85 @@
+# ============================================================================
+# Git Ignore File for Oracle Inspection Workflow Formal Specifications
+# ============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# SPIN generated files
+pan
+pan.*
+_spin_nvr.tmp
+*.trail
+
+# NuSMV temporary files
+*.nusmv.out
+
+# P language generated files
+*.exe
+*.dll
+*.so
+*.dylib
+POutput/
+PGenerated/
+
+# Results directory (optional - uncomment if you don't want to track results)
+# results/
+
+# Generated report (optional - uncomment if generated on-demand)
+# FORMAL_SPECIFICATION_REPORT.md
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+*.bak
+*.backup
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Documentation builds
+docs/_build/
+docs/_static/
+docs/_templates/

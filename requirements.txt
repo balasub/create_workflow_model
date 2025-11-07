@@ -1,0 +1,16 @@
+# ============================================================================
+# Python Dependencies for Oracle Inspection Workflow Formal Specifications
+# ============================================================================
+# Install with: pip install -r requirements.txt
+# ============================================================================
+
+# Graphviz for state diagram visualization
+# Note: Also requires Graphviz system package to be installed
+# Ubuntu/Debian: sudo apt-get install graphviz
+# macOS: brew install graphviz
+# Windows: https://graphviz.org/download/
+graphviz>=0.20.1
+
+# Optional: Enhanced testing and reporting
+# pytest>=7.0.0  # Uncomment if you want to use pytest instead of unittest
+# coverage>=7.0.0  # Uncomment for test coverage analysis
