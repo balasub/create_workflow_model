@@ -1,0 +1,529 @@
+// ============================================================================
+// Oracle Purchasing Inspection Workflow - FORMULA 2.0 Specification
+// ============================================================================
+// This FORMULA model formally specifies the "Inspecting Received Items"
+// workflow from Oracle Purchasing, defining types, constraints, and
+// properties for verification and synthesis.
+// ============================================================================
+
+domain InspectionWorkflow
+{
+    // ========================================================================
+    // Type Definitions
+    // ========================================================================
+
+    // Workflow states
+    WorkflowState ::= Uninspected
+                   + InspectionWindowOpen
+                   + DataEntry
+                   + QualityEntry
+                   + Saved
+                   + Cancelled.
+
+    // Inspection decision
+    InspectionDecision ::= NoDecision
+                        + Accept
+                        + Reject.
+
+    // Field entry status
+    FieldStatus ::= NotEntered + Entered.
+
+    // Boolean values for configuration
+    BoolValue ::= False + True.
+
+    // Natural numbers for quantities (bounded)
+    Quantity ::= new (value: Natural).
+
+    // ========================================================================
+    // Core Data Types
+    // ========================================================================
+
+    // Inspection data structure
+    InspectionData ::= new (
+        total: Quantity,
+        inspected: Quantity,
+        accepted: Quantity,
+        rejected: Quantity,
+        uninspected: Quantity
+    ).
+
+    // Required fields tracking
+    RequiredFields ::= new (
+        qualityCode: FieldStatus,
+        reasonCode: FieldStatus,
+        uom: FieldStatus,
+        date: FieldStatus,
+        supplierLot: FieldStatus
+    ).
+
+    // Oracle Quality integration configuration
+    QualityConfig ::= new (
+        oracleQualityInstalled: BoolValue,
+        mandatoryQualityPlan: BoolValue,
+        qualityResultsEntered: FieldStatus
+    ).
+
+    // OPM integration configuration
+    OPMConfig ::= new (
+        opmEnabled: BoolValue,
+        processOrganization: BoolValue,
+        secondaryUOMEntered: FieldStatus,
+        secondaryQuantityEntered: FieldStatus
+    ).
+
+    // Complete workflow state
+    WorkflowInstance ::= new (
+        state: WorkflowState,
+        decision: InspectionDecision,
+        data: InspectionData,
+        fields: RequiredFields,
+        quality: QualityConfig,
+        opm: OPMConfig
+    ).
+
+    // ========================================================================
+    // State Transition Functions
+    // ========================================================================
+
+    // Navigate to inspection window
+    ClickInspect ::= fun (w: WorkflowInstance => WorkflowInstance).
+
+    // Select accept or reject
+    SelectAccept ::= fun (w: WorkflowInstance => WorkflowInstance).
+    SelectReject ::= fun (w: WorkflowInstance => WorkflowInstance).
+
+    // Enter required fields
+    EnterQualityCode ::= fun (w: WorkflowInstance => WorkflowInstance).
+    EnterUOM ::= fun (w: WorkflowInstance => WorkflowInstance).
+    EnterReasonCode ::= fun (w: WorkflowInstance => WorkflowInstance).
+
+    // Enter quantity
+    EnterQuantity ::= fun (w: WorkflowInstance, q: Quantity => WorkflowInstance).
+
+    // Enter quality results
+    EnterQualityResults ::= fun (w: WorkflowInstance => WorkflowInstance).
+
+    // Enter OPM secondary fields
+    EnterSecondaryFields ::= fun (w: WorkflowInstance => WorkflowInstance).
+
+    // Save or cancel
+    Save ::= fun (w: WorkflowInstance => WorkflowInstance).
+    Cancel ::= fun (w: WorkflowInstance => WorkflowInstance).
+
+    // Re-query for more inspection
+    Requery ::= fun (w: WorkflowInstance => WorkflowInstance).
+
+    // ========================================================================
+    // Helper Predicates
+    // ========================================================================
+
+    // Check if required fields are complete
+    RequiredFieldsComplete ::= (w: WorkflowInstance).
+
+    // Check if can save
+    CanSave ::= (w: WorkflowInstance).
+
+    // Check if can requery
+    CanRequery ::= (w: WorkflowInstance).
+
+    // ========================================================================
+    // Constraint Rules - Quantity Conservation
+    // ========================================================================
+
+    // Quantity conservation must always hold
+    quantityConservationViolation :-
+        w is WorkflowInstance(_, _,
+            InspectionData(Quantity(total), _, Quantity(acc), Quantity(rej), Quantity(uninsp)),
+            _, _, _),
+        acc + rej + uninsp != total.
+
+    conforms no quantityConservationViolation.
+
+    // ========================================================================
+    // Constraint Rules - No Negative Quantities
+    // ========================================================================
+
+    negativeQuantity :-
+        w is WorkflowInstance(_, _,
+            InspectionData(_, _, Quantity(acc), _, _),
+            _, _, _),
+        acc < 0.
+
+    negativeQuantity :-
+        w is WorkflowInstance(_, _,
+            InspectionData(_, _, _, Quantity(rej), _),
+            _, _, _),
+        rej < 0.
+
+    negativeQuantity :-
+        w is WorkflowInstance(_, _,
+            InspectionData(_, _, _, _, Quantity(uninsp)),
+            _, _, _),
+        uninsp < 0.
+
+    conforms no negativeQuantity.
+
+    // ========================================================================
+    // Constraint Rules - Inspection Decision
+    // ========================================================================
+
+    // Must make decision before data entry
+    invalidDataEntryState :-
+        w is WorkflowInstance(DataEntry, NoDecision, _, _, _, _).
+
+    conforms no invalidDataEntryState.
+
+    // ========================================================================
+    // Constraint Rules - Required Fields
+    // ========================================================================
+
+    // Cannot save without quality code
+    savedWithoutQualityCode :-
+        w is WorkflowInstance(Saved, _,
+            _,
+            RequiredFields(NotEntered, _, _, _, _),
+            _, _).
+
+    conforms no savedWithoutQualityCode.
+
+    // Cannot save without UOM
+    savedWithoutUOM :-
+        w is WorkflowInstance(Saved, _,
+            _,
+            RequiredFields(_, _, NotEntered, _, _),
+            _, _).
+
+    conforms no savedWithoutUOM.
+
+    // ========================================================================
+    // Constraint Rules - Mandatory Quality Results
+    // ========================================================================
+
+    // Cannot save without quality results when mandatory
+    savedWithoutMandatoryQuality :-
+        w is WorkflowInstance(Saved, _,
+            _,
+            _,
+            QualityConfig(True, True, NotEntered),
+            _).
+
+    conforms no savedWithoutMandatoryQuality.
+
+    // ========================================================================
+    // Constraint Rules - OPM Secondary Fields
+    // ========================================================================
+
+    // Cannot save without OPM secondary UOM when required
+    savedWithoutOPMSecondaryUOM :-
+        w is WorkflowInstance(Saved, _,
+            _,
+            _,
+            _,
+            OPMConfig(True, True, NotEntered, _)).
+
+    conforms no savedWithoutOPMSecondaryUOM.
+
+    // Cannot save without OPM secondary quantity when required
+    savedWithoutOPMSecondaryQuantity :-
+        w is WorkflowInstance(Saved, _,
+            _,
+            _,
+            _,
+            OPMConfig(True, True, _, NotEntered)).
+
+    conforms no savedWithoutOPMSecondaryQuantity.
+
+    // ========================================================================
+    // Constraint Rules - State Transitions
+    // ========================================================================
+
+    // Cannot transition to Saved from Uninspected
+    invalidSaveFromUninspected :-
+        w1 is WorkflowInstance(Uninspected, _, _, _, _, _),
+        w2 is Save(w1),
+        w2 is WorkflowInstance(Saved, _, _, _, _, _).
+
+    conforms no invalidSaveFromUninspected.
+
+    // Cannot transition to DataEntry without opening inspection window first
+    invalidDataEntryTransition :-
+        w1 is WorkflowInstance(Uninspected, _, _, _, _, _),
+        w2 is SelectAccept(w1),
+        w2 is WorkflowInstance(DataEntry, _, _, _, _, _).
+
+    conforms no invalidDataEntryTransition.
+
+    // ========================================================================
+    // Constraint Rules - Inspected Quantity Bounds
+    // ========================================================================
+
+    // Inspected quantity cannot exceed uninspected
+    inspectedExceedsUninspected :-
+        w is WorkflowInstance(_, _,
+            InspectionData(_, Quantity(insp), _, _, Quantity(uninsp)),
+            _, _, _),
+        insp > uninsp.
+
+    conforms no inspectedExceedsUninspected.
+
+    // Inspected quantity cannot exceed total
+    inspectedExceedsTotal :-
+        w is WorkflowInstance(_, _,
+            InspectionData(Quantity(total), Quantity(insp), _, _, _),
+            _, _, _),
+        insp > total.
+
+    conforms no inspectedExceedsTotal.
+
+    // ========================================================================
+    // Constraint Rules - Re-query Behavior
+    // ========================================================================
+
+    // Cannot requery if no uninspected items remain
+    invalidRequery :-
+        w1 is WorkflowInstance(Saved, _,
+            InspectionData(_, _, _, _, Quantity(0)),
+            _, _, _),
+        w2 is Requery(w1).
+
+    conforms no invalidRequery.
+}
+
+// ============================================================================
+// Partial Model - Basic Inspection Scenario
+// ============================================================================
+
+partial model BasicInspection of InspectionWorkflow
+{
+    // Initial state
+    initial is WorkflowInstance(
+        Uninspected,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Require at least one successful save
+    requires atleast 1 WorkflowInstance(Saved, _, _, _, _, _).
+}
+
+// ============================================================================
+// Partial Model - Oracle Quality Integration Scenario
+// ============================================================================
+
+partial model QualityInspection of InspectionWorkflow
+{
+    // Initial state with Oracle Quality enabled
+    initial is WorkflowInstance(
+        Uninspected,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(True, True, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Require quality results to be entered
+    requires atleast 1 WorkflowInstance(_, _,
+        _,
+        _,
+        QualityConfig(True, True, Entered),
+        _).
+
+    // Require successful save
+    requires atleast 1 WorkflowInstance(Saved, _, _, _, _, _).
+}
+
+// ============================================================================
+// Partial Model - OPM Integration Scenario
+// ============================================================================
+
+partial model OPMInspection of InspectionWorkflow
+{
+    // Initial state with OPM enabled for process organization
+    initial is WorkflowInstance(
+        Uninspected,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(True, True, NotEntered, NotEntered)
+    ).
+
+    // Require OPM secondary fields to be entered
+    requires atleast 1 WorkflowInstance(_, _,
+        _,
+        _,
+        _,
+        OPMConfig(True, True, Entered, Entered)).
+
+    // Require successful save
+    requires atleast 1 WorkflowInstance(Saved, _, _, _, _, _).
+}
+
+// ============================================================================
+// Complete Model - Normal Accept Flow
+// ============================================================================
+
+model NormalAcceptFlow of InspectionWorkflow
+{
+    // Step 1: Initial uninspected state
+    s0 is WorkflowInstance(
+        Uninspected,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Step 2: Click inspect button
+    s1 is WorkflowInstance(
+        InspectionWindowOpen,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Step 3: Select accept
+    s2 is WorkflowInstance(
+        DataEntry,
+        Accept,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Step 4: Enter quantity (50 items)
+    s3 is WorkflowInstance(
+        DataEntry,
+        Accept,
+        InspectionData(Quantity(100), Quantity(50), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Step 5: Enter quality code
+    s4 is WorkflowInstance(
+        DataEntry,
+        Accept,
+        InspectionData(Quantity(100), Quantity(50), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(Entered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Step 6: Enter UOM
+    s5 is WorkflowInstance(
+        DataEntry,
+        Accept,
+        InspectionData(Quantity(100), Quantity(50), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(Entered, NotEntered, Entered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Step 7: Save inspection (accepted: 50, uninspected: 50)
+    s6 is WorkflowInstance(
+        Saved,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(50), Quantity(0), Quantity(50)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Verify quantity conservation at each step
+    s0 conforms InspectionWorkflow.
+    s1 conforms InspectionWorkflow.
+    s2 conforms InspectionWorkflow.
+    s3 conforms InspectionWorkflow.
+    s4 conforms InspectionWorkflow.
+    s5 conforms InspectionWorkflow.
+    s6 conforms InspectionWorkflow.
+}
+
+// ============================================================================
+// Complete Model - Reject Flow
+// ============================================================================
+
+model NormalRejectFlow of InspectionWorkflow
+{
+    // Initial state
+    s0 is WorkflowInstance(
+        Uninspected,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Click inspect
+    s1 is WorkflowInstance(
+        InspectionWindowOpen,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Select reject
+    s2 is WorkflowInstance(
+        DataEntry,
+        Reject,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Enter quantity (30 items)
+    s3 is WorkflowInstance(
+        DataEntry,
+        Reject,
+        InspectionData(Quantity(100), Quantity(30), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Enter required fields
+    s4 is WorkflowInstance(
+        DataEntry,
+        Reject,
+        InspectionData(Quantity(100), Quantity(30), Quantity(0), Quantity(0), Quantity(100)),
+        RequiredFields(Entered, NotEntered, Entered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Save (rejected: 30, uninspected: 70)
+    s5 is WorkflowInstance(
+        Saved,
+        NoDecision,
+        InspectionData(Quantity(100), Quantity(0), Quantity(0), Quantity(30), Quantity(70)),
+        RequiredFields(NotEntered, NotEntered, NotEntered, Entered, NotEntered),
+        QualityConfig(False, False, NotEntered),
+        OPMConfig(False, False, NotEntered, NotEntered)
+    ).
+
+    // Verify all states
+    s0 conforms InspectionWorkflow.
+    s1 conforms InspectionWorkflow.
+    s2 conforms InspectionWorkflow.
+    s3 conforms InspectionWorkflow.
+    s4 conforms InspectionWorkflow.
+    s5 conforms InspectionWorkflow.
+}
+
+// ============================================================================
+// END OF SPECIFICATION
+// ============================================================================

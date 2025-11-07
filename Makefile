@@ -5,10 +5,10 @@
 # inspection workflow formal specifications.
 # ============================================================================
 
-.PHONY: all help clean nusmv spin test visualize report
+.PHONY: all help clean nusmv spin formula test visualize report
 
 # Default target
-all: nusmv spin test visualize report
+all: nusmv spin formula test visualize report
 
 # Help target
 help:
@@ -20,6 +20,7 @@ help:
 	@echo "  make all        - Run all verifications, tests, and generate report"
 	@echo "  make nusmv      - Run NuSMV model checker"
 	@echo "  make spin       - Run SPIN model checker"
+	@echo "  make formula    - Run FORMULA verification"
 	@echo "  make test       - Run Python test suite"
 	@echo "  make visualize  - Generate state diagrams"
 	@echo "  make report     - Generate formal specification report"
@@ -28,6 +29,7 @@ help:
 	@echo ""
 	@echo "Prerequisites:"
 	@echo "  - NuSMV: http://nusmv.fbk.eu/"
+	@echo "  - FORMULA: https://github.com/VUISIS/formula"
 	@echo "  - SPIN: http://spinroot.com/"
 	@echo "  - Python 3.x with packages: pip install -r requirements.txt"
 	@echo "  - Graphviz: https://graphviz.org/"
@@ -61,6 +63,20 @@ spin: results
 	else \
 		echo "✗ SPIN not found - skipping"; \
 		echo "Install from: http://spinroot.com/"; \
+	fi
+	@echo ""
+
+# FORMULA verification
+formula: results
+	@echo "============================================================================"
+	@echo "Running FORMULA verification..."
+	@echo "============================================================================"
+	@if command -v formula >/dev/null 2>&1; then \
+		./verify_formula.sh; \
+	else \
+		echo "✗ FORMULA not found - skipping"; \
+		echo "Install from: https://github.com/VUISIS/formula"; \
+		echo "Or via dotnet: dotnet tool install --global formula"; \
 	fi
 	@echo ""
 
@@ -139,6 +155,7 @@ full: results
 	@echo "============================================================================"
 	@$(MAKE) nusmv
 	@$(MAKE) spin
+	@$(MAKE) formula
 	@$(MAKE) p
 	@$(MAKE) test
 	@$(MAKE) visualize
@@ -150,6 +167,7 @@ full: results
 	@echo "Results:"
 	@echo "  - NuSMV:        results/nusmv_results.txt"
 	@echo "  - SPIN:         results/spin_results.txt"
+	@echo "  - FORMULA:      results/formula_results.txt"
 	@echo "  - P:            results/p_results.txt"
 	@echo "  - Test Suite:   (console output)"
 	@echo "  - Diagrams:     results/*.png"
@@ -182,6 +200,12 @@ check:
 		echo "✓ Found"; \
 	else \
 		echo "✗ Not found (http://spinroot.com/)"; \
+	fi
+	@echo -n "FORMULA:   "
+	@if command -v formula >/dev/null 2>&1; then \
+		echo "✓ Found"; \
+	else \
+		echo "✗ Not found (https://github.com/VUISIS/formula)"; \
 	fi
 	@echo -n "GCC:       "
 	@if command -v gcc >/dev/null 2>&1; then \

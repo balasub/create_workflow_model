@@ -8,6 +8,7 @@ The inspection workflow has been formally modeled and verified using:
 
 - **NuSMV** - Symbolic model checking with CTL (Computational Tree Logic)
 - **SPIN** - Protocol verification with LTL (Linear Temporal Logic)
+- **FORMULA** - Domain-specific language specifications with constraint solving
 - **P** - Event-driven state machine modeling
 
 The formal specifications verify critical properties including:
@@ -56,11 +57,16 @@ make all
    - Ubuntu/Debian: `sudo apt-get install spin`
    - macOS: `brew install spin`
 
-4. **GCC** (required for SPIN)
+4. **FORMULA** (for domain specification and constraint solving)
+   - GitHub: https://github.com/VUISIS/formula
+   - Install via dotnet: `dotnet tool install --global formula`
+   - Requires .NET SDK: https://dotnet.microsoft.com/download
+
+5. **GCC** (required for SPIN)
    - Ubuntu/Debian: `sudo apt-get install build-essential`
    - macOS: `xcode-select --install`
 
-5. **Graphviz** (for visualization)
+6. **Graphviz** (for visualization)
    - Ubuntu/Debian: `sudo apt-get install graphviz`
    - macOS: `brew install graphviz`
    - Windows: https://graphviz.org/download/
@@ -82,20 +88,24 @@ Required packages:
 .
 ├── inspection_workflow.smv          # NuSMV model specification
 ├── inspection_workflow.pml          # SPIN/Promela model specification
+├── inspection_workflow.4ml          # FORMULA domain specification
 ├── InspectionWorkflow.p             # P language model specification
 ├── test_scenarios.py                # Python test suite
 ├── visualize_states.py              # State diagram generator
 ├── generate_report.py               # Report generator
 ├── verify_nusmv.sh                  # NuSMV verification script
 ├── verify_spin.sh                   # SPIN verification script
+├── verify_formula.sh                # FORMULA verification script
 ├── run_all_verifications.sh         # Complete verification suite
 ├── Makefile                         # Build automation
 ├── requirements.txt                 # Python dependencies
 ├── README.md                        # This file
 ├── FORMAL_SPECIFICATION_REPORT.md   # Generated report (after running)
+├── SPIN_FIXES.md                    # Documentation of SPIN fixes
 └── results/                         # Generated verification results
     ├── nusmv_results.txt
     ├── spin_results.txt
+    ├── formula_results.txt
     ├── state_diagram.png
     ├── detailed_state_diagram.png
     └── properties_diagram.png
@@ -112,6 +122,7 @@ make all
 # Run specific verifications
 make nusmv          # NuSMV only
 make spin           # SPIN only
+make formula        # FORMULA only
 make test           # Test suite only
 make visualize      # Generate diagrams only
 make report         # Generate report only
@@ -143,6 +154,9 @@ make help
 
 # Run SPIN verification
 ./verify_spin.sh
+
+# Run FORMULA verification
+./verify_formula.sh
 
 # Run test suite
 python3 test_scenarios.py
@@ -176,6 +190,20 @@ gcc -o pan pan.c
 
 # Run verification
 ./pan -a
+```
+
+#### FORMULA
+
+```bash
+# Check model syntax
+formula check inspection_workflow.4ml
+
+# Verify domain
+formula verify InspectionWorkflow inspection_workflow.4ml
+
+# Verify specific models
+formula verify NormalAcceptFlow inspection_workflow.4ml
+formula verify NormalRejectFlow inspection_workflow.4ml
 ```
 
 #### P Language
@@ -216,6 +244,24 @@ Key properties verified:
 - Quality results before save when mandatory
 - Quantity conservation across all operations
 - Proper event sequencing
+
+### FORMULA Model (`inspection_workflow.4ml`)
+
+The FORMULA model provides:
+- **Domain-based specification** with type definitions and constraints
+- **13 conformance constraints** (must-not-occur conditions)
+- **3 partial models** for different scenarios
+- **2 complete models** showing concrete workflow traces
+- **Algebraic data types** for workflow state and quantities
+
+Key features:
+- Type-safe domain modeling with constructors
+- Logic programming-style constraint rules
+- Quantity conservation enforced at type level
+- Required field validation through conformance rules
+- Integration configuration (Oracle Quality, OPM) modeled explicitly
+- Partial models with requirements for synthesis
+- Complete models demonstrating accept/reject flows
 
 ### P Model (`InspectionWorkflow.p`)
 
