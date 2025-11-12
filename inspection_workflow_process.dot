@@ -1,0 +1,265 @@
+// ============================================================================
+// Oracle Purchasing Inspection Workflow - Overall Process Diagram
+// ============================================================================
+// This Graphviz diagram shows the complete inspection workflow process
+// including states, transitions, decision points, and integration flows.
+// ============================================================================
+// Usage: dot -Tpng -o inspection_workflow_process.png inspection_workflow_process.dot
+//        or: neato -Tpng -o inspection_workflow_process.png inspection_workflow_process.dot
+// ============================================================================
+
+digraph InspectionWorkflowProcess {
+    // Graph attributes
+    rankdir=TB;
+    splines=ortho;
+    nodesep=0.8;
+    ranksep=1.0;
+    compound=true;
+
+    // Default node and edge styles
+    node [shape=box, style="rounded,filled", fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=9];
+
+    // ========================================================================
+    // LEGEND
+    // ========================================================================
+    subgraph cluster_legend {
+        label="Legend";
+        style=rounded;
+        color=gray;
+        fontsize=10;
+
+        leg_state [label="Workflow State", fillcolor=lightblue];
+        leg_decision [label="Decision Point", shape=diamond, fillcolor=lightyellow];
+        leg_action [label="User Action", fillcolor=lightgreen];
+        leg_validation [label="Validation", fillcolor=lightcoral];
+        leg_integration [label="Integration", fillcolor=lavender];
+        leg_terminal [label="Terminal State", fillcolor=lightgray];
+
+        leg_state -> leg_decision [style=invis];
+        leg_decision -> leg_action [style=invis];
+        leg_action -> leg_validation [style=invis];
+        leg_validation -> leg_integration [style=invis];
+        leg_integration -> leg_terminal [style=invis];
+    }
+
+    // ========================================================================
+    // MAIN WORKFLOW STATES
+    // ========================================================================
+
+    // Entry point
+    start [label="START\n(Received Items)", shape=circle, fillcolor=black, fontcolor=white, width=1.2];
+
+    // Uninspected state
+    uninspected [label="Uninspected\n\nQuantity:\ntotal = 100\nuninspected = 100\naccepted = 0\nrejected = 0", fillcolor=lightblue];
+
+    // Inspection window open
+    inspection_window [label="Inspection Window Open\n\nUser can view\nreceiving transactions", fillcolor=lightblue];
+
+    // Decision points
+    decision_accept_reject [label="Select\nAccept or Reject?", shape=diamond, fillcolor=lightyellow, width=1.5];
+
+    // Data entry state
+    data_entry [label="Data Entry\n\nEntering inspection details:\n- Quantity\n- Quality Code (required)\n- UOM (required)\n- Reason Code\n- Supplier Lot\n- Date (default: today)", fillcolor=lightblue];
+
+    // Quality entry (conditional)
+    quality_entry [label="Quality Entry\n\nEntering mandatory\nquality results", fillcolor=lavender];
+
+    // Validation
+    validation [label="Validation\n\nCheck:\n- Required fields entered\n- Quantity valid\n- Quality results (if mandatory)\n- OPM fields (if required)", shape=box, fillcolor=lightcoral];
+
+    decision_validation [label="All\nvalidations\npassed?", shape=diamond, fillcolor=lightyellow, width=1.3];
+
+    // Saved state
+    saved [label="Saved\n\nInspection recorded\nQuantities updated\nFields reset", fillcolor=lightgreen];
+
+    // Cancelled state
+    cancelled [label="Cancelled\n\nInspection aborted\nNo changes saved", fillcolor=lightgray];
+
+    // Terminal states
+    decision_more_items [label="More items\nto inspect?", shape=diamond, fillcolor=lightyellow, width=1.3];
+
+    complete [label="COMPLETE\n\nAll items inspected", shape=doublecircle, fillcolor=darkgreen, fontcolor=white, width=1.5];
+
+    // ========================================================================
+    // USER ACTIONS
+    // ========================================================================
+
+    action_inspect [label="Click\nInspect Button", fillcolor=lightgreen];
+    action_accept [label="Select\nAccept", fillcolor=lightgreen];
+    action_reject [label="Select\nReject", fillcolor=lightgreen];
+    action_enter_qty [label="Enter\nQuantity", fillcolor=lightgreen];
+    action_enter_fields [label="Enter\nRequired Fields", fillcolor=lightgreen];
+    action_enter_quality [label="Enter\nQuality Results", fillcolor=lightgreen];
+    action_save [label="Click\nSave", fillcolor=lightgreen];
+    action_cancel [label="Click\nCancel", fillcolor=lightgreen];
+    action_requery [label="Re-query\nfor More Items", fillcolor=lightgreen];
+
+    // ========================================================================
+    // INTEGRATION POINTS
+    // ========================================================================
+
+    subgraph cluster_quality {
+        label="Oracle Quality Integration";
+        style=rounded;
+        color=purple;
+        fillcolor=lavender;
+
+        check_quality [label="Oracle Quality\nInstalled?", shape=diamond, fillcolor=white];
+        check_mandatory [label="Mandatory\nQuality Plan?", shape=diamond, fillcolor=white];
+
+        check_quality -> check_mandatory [label="Yes"];
+    }
+
+    subgraph cluster_opm {
+        label="OPM Integration";
+        style=rounded;
+        color=blue;
+        fillcolor=lightcyan;
+
+        check_opm [label="OPM Enabled &\nProcess Org?", shape=diamond, fillcolor=white];
+        action_opm_fields [label="Enter Secondary\nUOM & Quantity", fillcolor=lightgreen];
+
+        check_opm -> action_opm_fields [label="Yes"];
+    }
+
+    // ========================================================================
+    // MAIN FLOW
+    // ========================================================================
+
+    start -> uninspected;
+
+    uninspected -> action_inspect;
+    action_inspect -> inspection_window;
+
+    inspection_window -> decision_accept_reject;
+
+    decision_accept_reject -> action_accept [label="Accept"];
+    decision_accept_reject -> action_reject [label="Reject"];
+    decision_accept_reject -> action_cancel [label="Cancel", color=red, style=dashed];
+
+    action_accept -> data_entry [label="decision = accept"];
+    action_reject -> data_entry [label="decision = reject"];
+
+    data_entry -> action_enter_qty;
+    action_enter_qty -> action_enter_fields;
+    action_enter_fields -> data_entry [label="More fields", style=dashed];
+
+    // Integration checks
+    action_enter_fields -> check_quality [lhead=cluster_quality];
+    check_mandatory -> quality_entry [label="Yes"];
+    quality_entry -> action_enter_quality;
+    action_enter_quality -> data_entry;
+
+    action_enter_fields -> check_opm [lhead=cluster_opm];
+    action_opm_fields -> data_entry;
+
+    // Validation flow
+    data_entry -> action_save [label="Ready to save"];
+    action_save -> validation;
+    validation -> decision_validation;
+
+    decision_validation -> saved [label="Pass", color=green, penwidth=2];
+    decision_validation -> data_entry [label="Fail\n(fix errors)", color=red, style=dashed];
+
+    // Cancel paths
+    data_entry -> action_cancel [label="Cancel", color=red, style=dashed];
+    quality_entry -> action_cancel [label="Cancel", color=red, style=dashed];
+    action_cancel -> cancelled;
+
+    // After save
+    saved -> decision_more_items;
+    decision_more_items -> action_requery [label="Yes\n(uninspected > 0)"];
+    action_requery -> inspection_window;
+    decision_more_items -> complete [label="No\n(uninspected = 0)", color=green, penwidth=2];
+
+    cancelled -> complete [label="End", color=gray, style=dashed];
+
+    // ========================================================================
+    // CONSTRAINTS AND PROPERTIES
+    // ========================================================================
+
+    subgraph cluster_constraints {
+        label="Key Constraints & Properties";
+        style=rounded;
+        color=darkred;
+        fontsize=10;
+
+        constraint1 [label="Quantity Conservation:\naccepted + rejected + uninspected = total\n(ALWAYS)",
+                     shape=note, fillcolor=lightyellow, fontsize=9];
+        constraint2 [label="Required Fields:\nquality_code && uom\n(BEFORE SAVE)",
+                     shape=note, fillcolor=lightyellow, fontsize=9];
+        constraint3 [label="No Negative Quantities:\nall quantities >= 0\n(ALWAYS)",
+                     shape=note, fillcolor=lightyellow, fontsize=9];
+        constraint4 [label="Progress Guarantee:\neventually saved || cancelled\n(LIVENESS)",
+                     shape=note, fillcolor=lightgreen, fontsize=9];
+
+        constraint1 -> constraint2 [style=invis];
+        constraint2 -> constraint3 [style=invis];
+        constraint3 -> constraint4 [style=invis];
+    }
+
+    // ========================================================================
+    // QUANTITY TRACKING
+    // ========================================================================
+
+    subgraph cluster_quantities {
+        label="Quantity Tracking Example";
+        style=rounded;
+        color=darkblue;
+        fontsize=10;
+
+        qty_start [label="Initial:\ntotal = 100\nuninspected = 100\naccepted = 0\nrejected = 0",
+                   shape=box, fillcolor=white, fontsize=9];
+        qty_inspect [label="Inspect 50:\ntotal = 100\ninspected = 50\nuninspected = 100",
+                     shape=box, fillcolor=white, fontsize=9];
+        qty_after [label="After Accept:\ntotal = 100\naccepted = 50\nuninspected = 50\nrejected = 0",
+                   shape=box, fillcolor=white, fontsize=9];
+
+        qty_start -> qty_inspect [label="enter qty"];
+        qty_inspect -> qty_after [label="save"];
+    }
+
+    // ========================================================================
+    // VERIFICATION TOOLS
+    // ========================================================================
+
+    subgraph cluster_tools {
+        label="Formal Verification Tools";
+        style=rounded;
+        color=darkgreen;
+        fontsize=10;
+
+        tool_nusmv [label="NuSMV\n22 CTL properties", shape=box, fillcolor=lightcyan, fontsize=9];
+        tool_spin [label="SPIN\n10 LTL properties", shape=box, fillcolor=lightcyan, fontsize=9];
+        tool_formula [label="FORMULA\n13 constraints", shape=box, fillcolor=lightcyan, fontsize=9];
+        tool_p [label="P Language\n5 specifications", shape=box, fillcolor=lightcyan, fontsize=9];
+
+        tool_nusmv -> tool_spin [style=invis];
+        tool_spin -> tool_formula [style=invis];
+        tool_formula -> tool_p [style=invis];
+    }
+
+    // ========================================================================
+    // LAYOUT HINTS
+    // ========================================================================
+
+    // Keep legend at top
+    {rank=source; cluster_legend}
+
+    // Main flow
+    {rank=same; start; uninspected}
+    {rank=same; inspection_window; action_inspect}
+    {rank=same; decision_accept_reject; action_accept; action_reject}
+    {rank=same; data_entry; action_enter_fields}
+    {rank=same; validation; action_save}
+    {rank=same; saved; cancelled}
+    {rank=same; decision_more_items; complete}
+
+    // Clusters at bottom
+    {rank=sink; cluster_constraints; cluster_quantities; cluster_tools}
+}
+
+// ============================================================================
+// END OF DIAGRAM
+// ============================================================================

@@ -5,10 +5,10 @@
 # inspection workflow formal specifications.
 # ============================================================================
 
-.PHONY: all help clean nusmv spin formula test visualize report
+.PHONY: all help clean nusmv spin formula test visualize process-diagram diagrams report
 
 # Default target
-all: nusmv spin formula test visualize report
+all: nusmv spin formula test diagrams report
 
 # Help target
 help:
@@ -22,7 +22,9 @@ help:
 	@echo "  make spin       - Run SPIN model checker"
 	@echo "  make formula    - Run FORMULA verification"
 	@echo "  make test       - Run Python test suite"
-	@echo "  make visualize  - Generate state diagrams"
+	@echo "  make visualize  - Generate state diagrams (Python)"
+	@echo "  make process-diagram - Generate process diagram (Graphviz)"
+	@echo "  make diagrams   - Generate all diagrams"
 	@echo "  make report     - Generate formal specification report"
 	@echo "  make clean      - Clean generated files"
 	@echo "  make help       - Show this help message"
@@ -107,10 +109,10 @@ test:
 	fi
 	@echo ""
 
-# Generate visualizations
+# Generate state diagrams (Python)
 visualize: results
 	@echo "============================================================================"
-	@echo "Generating visualizations..."
+	@echo "Generating state diagrams..."
 	@echo "============================================================================"
 	@if command -v python3 >/dev/null 2>&1; then \
 		python3 visualize_states.py; \
@@ -118,6 +120,23 @@ visualize: results
 		echo "✗ Python 3 not found"; \
 	fi
 	@echo ""
+
+# Generate process diagram (Graphviz)
+process-diagram: results
+	@echo "============================================================================"
+	@echo "Generating process diagram..."
+	@echo "============================================================================"
+	@if command -v dot >/dev/null 2>&1; then \
+		./generate_process_diagram.sh; \
+	else \
+		echo "✗ Graphviz (dot) not found"; \
+		echo "Install: sudo apt-get install graphviz  (Linux)"; \
+		echo "         brew install graphviz  (macOS)"; \
+	fi
+	@echo ""
+
+# Generate all diagrams
+diagrams: visualize process-diagram
 
 # Generate report
 report: results
@@ -158,7 +177,7 @@ full: results
 	@$(MAKE) formula
 	@$(MAKE) p
 	@$(MAKE) test
-	@$(MAKE) visualize
+	@$(MAKE) diagrams
 	@$(MAKE) report
 	@echo ""
 	@echo "============================================================================"

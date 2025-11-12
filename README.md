@@ -89,9 +89,11 @@ Required packages:
 ├── inspection_workflow.smv          # NuSMV model specification
 ├── inspection_workflow.pml          # SPIN/Promela model specification
 ├── inspection_workflow.4ml          # FORMULA domain specification
+├── inspection_workflow_process.dot  # Graphviz process diagram source
 ├── InspectionWorkflow.p             # P language model specification
 ├── test_scenarios.py                # Python test suite
 ├── visualize_states.py              # State diagram generator
+├── generate_process_diagram.sh      # Process diagram generator
 ├── generate_report.py               # Report generator
 ├── verify_nusmv.sh                  # NuSMV verification script
 ├── verify_spin.sh                   # SPIN verification script
@@ -108,7 +110,10 @@ Required packages:
     ├── formula_results.txt
     ├── state_diagram.png
     ├── detailed_state_diagram.png
-    └── properties_diagram.png
+    ├── properties_diagram.png
+    ├── inspection_workflow_process.png
+    ├── inspection_workflow_process.svg
+    └── inspection_workflow_process.pdf
 ```
 
 ## Usage
@@ -124,7 +129,9 @@ make nusmv          # NuSMV only
 make spin           # SPIN only
 make formula        # FORMULA only
 make test           # Test suite only
-make visualize      # Generate diagrams only
+make visualize      # Generate state diagrams only
+make process-diagram # Generate process diagram only
+make diagrams       # Generate all diagrams
 make report         # Generate report only
 
 # Run quick verification (NuSMV + report)
@@ -161,8 +168,11 @@ make help
 # Run test suite
 python3 test_scenarios.py
 
-# Generate visualizations
+# Generate state diagrams
 python3 visualize_states.py
+
+# Generate process diagram
+./generate_process_diagram.sh
 
 # Generate report
 python3 generate_report.py
@@ -313,7 +323,11 @@ python3 test_scenarios.py
 
 ## Visualization
 
-The visualization script generates three diagrams:
+The formal specification suite includes multiple visualization tools:
+
+### State Machine Diagrams (Python)
+
+The Python visualization script generates three diagrams:
 
 1. **State Diagram** - Main workflow states and transitions
 2. **Detailed State Diagram** - With guards and conditions
@@ -330,6 +344,48 @@ Output files:
 - `results/state_diagram.png`
 - `results/detailed_state_diagram.png`
 - `results/properties_diagram.png`
+
+### Overall Process Diagram (Graphviz)
+
+A comprehensive Graphviz diagram showing the complete inspection workflow process including:
+- All workflow states and transitions
+- Decision points and user actions
+- Integration flows (Oracle Quality, OPM)
+- Quantity tracking examples
+- Key constraints and properties
+- Verification tools overview
+
+Generate process diagram:
+```bash
+./generate_process_diagram.sh
+# OR
+make process-diagram
+```
+
+Manual generation:
+```bash
+# PNG format
+dot -Tpng inspection_workflow_process.dot -o results/inspection_workflow_process.png
+
+# SVG format (scalable)
+dot -Tsvg inspection_workflow_process.dot -o results/inspection_workflow_process.svg
+
+# PDF format (for documents)
+dot -Tpdf inspection_workflow_process.dot -o results/inspection_workflow_process.pdf
+```
+
+Output files:
+- `results/inspection_workflow_process.png` (bitmap)
+- `results/inspection_workflow_process.svg` (vector, scalable)
+- `results/inspection_workflow_process.pdf` (document-ready)
+
+### Generate All Diagrams
+
+```bash
+make diagrams
+```
+
+This generates all visualizations in one command.
 
 ## Formal Specification Report
 
